@@ -43,7 +43,7 @@ begin
 end $$;
 
 -- Pedidos de orcamento: no maximo 3 por e-mail por hora
-create or replace function public.limitar_orcamento() returns trigger language plpgsql as $$
+create or replace function public.limitar_orcamento() returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if (select count(*) from public.quotes where lower(email) = lower(new.email) and created_at > now() - interval '1 hour') >= 3 then
     raise exception 'muitas_tentativas'; end if;
