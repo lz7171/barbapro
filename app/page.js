@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { sb } from '../lib/supabase';
 export default function Home() {
   const [shops, setShops] = useState([]);
-  useEffect(() => { sb().from('shops').select('nome,slug').eq('status', 'ativa').order('nome').then(({ data }) => setShops(data || [])); }, []);
+  useEffect(() => { try { sb().from('shops').select('nome,slug').eq('status', 'ativa').order('nome').then(({ data }) => setShops(data || []), () => {}); } catch (e) { /* sem configuração: a página continua abrindo */ } }, []);
   return (<div><div className="card"><div className="bar" /><h1>BarbaPro</h1>
     <p>Agenda online, equipe, serviços com foto e controle de entradas e saídas para a sua barbearia.</p>
     <p><Link href="/orcamento">Pedir orçamento</Link> · <Link href="/login">Entrar</Link></p></div>
