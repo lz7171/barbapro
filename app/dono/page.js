@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { sb } from '../../lib/supabase';
-import { hm, hoje, R } from '../../lib/util';
+import { hm, hoje, R, setFuso, inicioDia, fimDia, stLabel } from '../../lib/util';
 import Financeiro from './Financeiro';
 import AcessoBarbeiro from './AcessoBarbeiro';
 import Horarios from './Horarios';
@@ -14,7 +14,7 @@ export default function Dono() {
   const load = useCallback(async () => {
     if (!shop) return; const s = sb();
     const [a, c, d, n] = await Promise.all([
-      s.from('appointments').select('*').gte('starts_at', `${day}T00:00:00-03:00`).lte('starts_at', `${day}T23:59:59-03:00`).order('starts_at'),
+      s.from('appointments').select('*').gte('starts_at', inicioDia(day)).lte('starts_at', fimDia(day)).order('starts_at'),
       s.from('staff').select('*').order('nome'), s.from('services').select('*').order('nome'),
       s.from('notifications').select('*').order('created_at', { ascending: false }).limit(50)]);
     setAp(a.data || []); setSt(c.data || []); setSv(d.data || []); setNt(n.data || []); }, [shop, day]);
@@ -22,8 +22,8 @@ export default function Dono() {
     const s = sb(); const { data } = await s.auth.getSession(); if (!data.session) return r.replace('/login');
     const { data: p } = await s.from('profiles').select('shop_id,role').eq('id', data.session.user.id).single();
     if (p && p.role === 'barbeiro') return r.replace('/barbeiro');
-    const { data: sh } = p?.shop_id ? await s.from('shops').select('id,nome').eq('id', p.shop_id).single() : {};
-    if (!sh) return r.replace('/login'); setShop(sh); })(); }, [r]);
+    const { data: sh } = p?.shop_id ? await s.from('shops').select('id,nome,slug,fuso').eq('id', p.shop_id).single() : {};
+    if (!sh) return r.replace('/login'); setFuso(sh.fuso); setDay(hoje()); setShop(sh); })(); }, [r]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (!shop) return; const s = sb();
     const ch = s.channel('n-' + shop.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `shop_id=eq.${shop.id}` }, () => load()).subscribe();
@@ -44,15 +44,15 @@ export default function Dono() {
   async function lerTudo() { await sb().from('notifications').update({ lida: true }).eq('lida', false); load(); }
   if (!shop) return <p>Carregando...</p>;
   const novas = nt.filter((n) => !n.lida).length; const nm = (id) => st.find((x) => x.id === id)?.nome || '?'; const sn = (id) => sv.find((x) => x.id === id)?.nome || '';
-  return (<div><h2>{shop.nome}</h2><PushBtn shopId={shop.id} /><p>
+  return (<div><h2>{shop.nome}</h2><PushBtn shopId={shop.id} /><div className="tabs" role="tablist">
     {[['agenda', 'Agenda'], ['staff', 'Equipe'], ['svc', 'Serviços e fotos'], ['hor', 'Horários'], ['fin', 'Financeiro'], ['nt', 'Avisos' + (novas ? ` (${novas})` : '')]].map(([k, n]) => (
-      <button key={k} className={tab === k ? '' : 'g'} style={{ marginRight: 6 }} onClick={() => { setTab(k); setMsg(''); }}>{n}</button>))}
-    <button className="g" onClick={async () => { await sb().auth.signOut(); r.replace('/'); }}>Sair</button></p>
+      <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => { setTab(k); setMsg(''); }}>{n}</button>))}
+    <button className="out" onClick={async () => { await sb().auth.signOut(); r.replace('/'); }}>Sair</button></div>
     {tab === 'agenda' && (<><input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} />
-      {ap.map((a) => (<div className="card row" key={a.id}><span><b>{hm(a.starts_at)}</b> {a.cliente_nome} - {sn(a.service_id)} ({nm(a.staff_id)}) <small>[{a.status}]</small><br /><small>{a.cliente_tel} | {R(a.preco_cobrado)}</small></span>
+      {ap.map((a) => (<div className="card row" key={a.id}><span><b>{hm(a.starts_at)}</b> {a.cliente_nome} - {sn(a.service_id)} ({nm(a.staff_id)}) <span className={'tag ' + a.status}>{stLabel[a.status]}</span><br /><small>{a.cliente_tel} | {R(a.preco_cobrado)}</small></span>
         {a.status === 'agendado' && <span><button onClick={() => status(a.id, 'concluido')}>Concluir</button> <button className="g" onClick={() => status(a.id, 'faltou')}>Faltou</button> <button className="g" onClick={() => status(a.id, 'cancelado')}>Cancelar</button></span>}</div>))}
       {!ap.length && <p><small>Nenhum agendamento neste dia.</small></p>}
-      <p><small>Link para seus clientes: /b/slug da barbearia (aparece na página inicial).</small></p></>)}
+      <p><small>Compartilhe com seus clientes (Instagram, WhatsApp):</small></p><div className="linkbox"><code>{typeof window !== 'undefined' ? window.location.origin : ''}/b/{shop.slug}</code><button className="g" style={{ margin: 0 }} onClick={() => navigator.clipboard && navigator.clipboard.writeText(window.location.origin + '/b/' + shop.slug)}>Copiar link</button></div></>)}
     {tab === 'staff' && (<><div className="card"><input placeholder="Nome do barbeiro" maxLength={60} value={bn} onChange={(e) => setBn(e.target.value)} />
       <input type="number" min="0" max="100" placeholder="Comissão %" value={bc} onChange={(e) => setBc(e.target.value)} /><button onClick={addStaff}>Adicionar barbeiro</button></div>
       <div className="card">{st.map((x) => (<div className="row" key={x.id}><span>{x.nome} <small>{x.comissao_pct}% {x.ativo ? '' : '(inativo)'}</small></span><button className="g" onClick={() => toggle('staff', x)}>{x.ativo ? 'Desativar' : 'Reativar'}</button></div>))}</div></>)}

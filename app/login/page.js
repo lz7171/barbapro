@@ -17,10 +17,10 @@ export default function Login() {
     }
     r.replace(p.role === 'super_admin' ? '/admin' : p.role === 'barbeiro' ? '/barbeiro' : '/dono');
   }
-  return (<div className="card" style={{ maxWidth: 380, margin: 'auto' }}><h2>Entrar</h2>
-    <input type="email" placeholder="E-mail" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
-    <input type="password" placeholder="Senha" autoComplete="current-password" value={senha}
+  return (<div className="card auth"><h2>Entrar no painel</h2><p style={{ color: 'var(--mu)' }}>Acesso para donos de barbearia, barbeiros e administração.</p>
+    <label className="lbl" htmlFor="em">E-mail</label><input id="em" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
+    <label className="lbl" htmlFor="sn">Senha</label><input id="sn" type="password" autoComplete="current-password" value={senha}
       onChange={(e) => setSenha(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && entrar()} />
-    <button disabled={busy} onClick={entrar}>{busy ? 'Entrando...' : 'Entrar'}</button>
+    <button disabled={busy} onClick={entrar} style={{ width: '100%', marginTop: 14 }}>{busy ? 'Entrando...' : 'Entrar'}</button>
     <p className="err" role="alert">{msg}</p></div>);
 }
